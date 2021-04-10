@@ -213,28 +213,36 @@ function <SID>TDirectorySearch(path, template_prefix, file_name)
 	let l:picked_template = ""
 	let l:picked_template_score = 0
 
+	let start = reltime()
+
 	" Use find if possible as it will also get hidden files on nix systems. Use
 	" builtin glob as a fallback
+	let startfind = reltime()
 	if executable("find") && !has("win32") && !has("win64")
-		let l:find_cmd = '`find -L ' . shellescape(a:path) . ' -maxdepth 1 -type f -name ' . shellescape(a:template_prefix . '*' ) . '`'
+		setl shell=/bin/sh
+		let l:find_cmd = 'find -L ' . shellescape(a:path) . ' -maxdepth 1 -type f -name ' . shellescape(a:template_prefix . '*' ) . ''
 		call <SID>Debug("Executing " . l:find_cmd)
-		let l:glob_results = glob(l:find_cmd)
+		let l:templates = systemlist(l:find_cmd)
 		if v:shell_error != 0
 			call <SID>Debug("Could not execute find command")
-			unlet l:glob_results
+			unlet l:templates
 		endif
+		set shell<
 	endif
-	if !exists("l:glob_results")
+	if !exists("l:templates")
 		call <SID>Debug("Using fallback glob")
-		let l:glob_results = glob(a:path . a:template_prefix . "*")
+		let l:templates = split(glob(a:path . a:template_prefix . "*"), "\n")
 	endif
-	let l:templates = split(l:glob_results, "\n")
+	call <SID>Debug("candidates found in " . reltimestr( reltime(startfind) ) . " seconds" )
+
+	let startscores = reltime()
 	for template in l:templates
 		" Make sure the template is readable
 		if filereadable(template)
+			let startscore = reltime()
 			let l:current_score =
 						\<SID>TemplateBaseNameTest(template, a:template_prefix, a:file_name)
-			call <SID>Debug("template: " . template . " got scored: " . l:current_score)
+			call <SID>Debug("template: " . template . " got scored: " . l:current_score . " in " . reltimestr( reltime(startscore) ) . " seconds" )
 
 			" Pick that template only if it beats the currently picked template
 			" (here we make the assumption that template name length ~= template
@@ -245,11 +253,12 @@ function <SID>TDirectorySearch(path, template_prefix, file_name)
 			endif
 		endif
 	endfor
+	call <SID>Debug("score completed in " . reltimestr( reltime(startscores) ) . " seconds" )
 
 	if l:picked_template != ""
-		call <SID>Debug("Picked template: " . l:picked_template)
+		call <SID>Debug("Picked template: " . l:picked_template . " in " . reltimestr( reltime(start) ) . " seconds")
 	else
-		call <SID>Debug("No template found")
+		call <SID>Debug("No template found in " . reltimestr( reltime(start) ) . " seconds")
 	endif
 
 	return l:picked_template
@@ -467,12 +476,15 @@ function <SID>TLoad(position, template)
 	    let l:tFile = a:template
     else
 	    let l:height = g:templates_search_height
-		let l:file_name = expand('%:p')
+	    let l:file_name = expand('%:p')
 	    let l:file_dir = <SID>DirName(l:file_name)
-		if a:template !=# ''
-			let l:file_name = a:template
-		endif
+	    if a:template !=# ''
+	      let l:file_name = a:template
+	    endif
+
+	    let start = reltime()
 	    let l:tFile = <SID>TFind(l:file_dir, l:file_name, l:height)
+	    call <SID>Debug("Found in " . reltimestr( reltime(start) ) . " seconds")
     endif
     call <SID>TLoadTemplate(l:tFile, a:position)
 endfunction
@@ -488,9 +500,9 @@ function <SID>TLoadTemplate(template, position)
 		" Read template file and expand variables in it.
 		let l:safeFileName = <SID>NeuterFileName(a:template)
 		if a:position == 0 || l:deleteLastLine == 1
-			execute "keepalt 0r " . l:safeFileName
+			silent execute "silent keepalt 0r " . l:safeFileName
 		else
-			execute "keepalt r " . l:safeFileName
+			silent execute "silent keepalt r " . l:safeFileName
 		endif
 		call <SID>TExpandVars()
 
