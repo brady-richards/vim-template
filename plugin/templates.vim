@@ -422,7 +422,7 @@ function <SID>TPutCursor()
 	if search("%HERE%", "W")
 		let l:column = col(".")
 		let l:lineno = line(".")
-		s/%HERE%//
+		silent! s/%HERE%//
 		call cursor(l:lineno, l:column)
 	endif
 endfunction
@@ -496,7 +496,7 @@ function <SID>TLoadTemplate(template, position)
 
 		if l:deleteLastLine == 1
 			" Loading a template into an empty buffer leaves an extra blank line at the bottom, delete it
-			execute line('$') . "d _"
+			silent execute line('$') . "d _"
 		endif
 
 		call <SID>TPutCursor()
